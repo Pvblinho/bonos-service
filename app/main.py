@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .auth import usuario_actual
-from .db import conexion, dict_cursor, esperar_bd, init_schema
+from .db import conexion, dict_cursor, esperar_bd, init_schema, ping
 
 
 @asynccontextmanager
@@ -53,10 +53,19 @@ class ReclamarRequest(BaseModel):
     monto_base: float = Field(default=0, ge=0, description="Base para bonos por porcentaje")
 
 
-# TODO (alumno): implementar las rutas de salud que usará Kubernetes:
-#   - liveness: ¿el proceso está vivo? (respuesta simple).
-#   - readiness: ¿está listo para recibir tráfico? Debe verificar la BD.
-# Luego configurar livenessProbe/readinessProbe en el Deployment de EKS.
+# ── Sondas de salud para Kubernetes ─────────────────────────
+#   • liveness  → ¿el proceso está vivo? NO depende de la BD.
+#   • readiness → ¿listo para recibir tráfico? Verifica la BD.
+@app.get("/livez")
+def livez():
+    return {"status": "alive"}
+
+
+@app.get("/readyz")
+def readyz():
+    if ping():
+        return {"status": "ready", "db": "up"}
+    raise HTTPException(status_code=503, detail={"status": "not-ready", "db": "down"})
 
 
 @app.get("/api/bonos")
